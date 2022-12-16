@@ -11,6 +11,12 @@ _Ekaterina Kalinicheva, Loic Landrieu, Clément Mallet, Nesrine Chehata "Multi-L
 
 **THE DESCRIPTION IS NOT FINALIZED YET!**
 
+**UPDATE (almost done)**
+The whole model have been improved and transformed to the bi-temporal multi-modal model. 
+The new code can be found in the folder _multimodal_and_multiseasonal_model_.
+No article will be made for this algorithm, however a brief overview of the model can be found in the README file located in the folder. 
+The whole code is better written than the initial one in this repository and can be equally used for 3D single-data analysis described in the article. (The user can choose in the _config_ file which type of data he wants to process. )
+
 ## Dataset
 The **WildForest3D** dataset contains 29 plots of dense forest, with 7 million 3D points and 2.1 million individual labels.
 The study area is located in the heavily forested French region of Aquitaine, and was scanned using a LiDAR installed on unmanned aerial vehicle with an average of 60 pulses per m². Each point is associated with its coordinates in Lambert-93 projection, the intensity value of returned laser signal, and the echo return number. The elevation of the points is given using a digital elevation model, such that the ground points are always at z=0m.
@@ -24,6 +30,7 @@ If you want the code to work properly, your folder structure should be the follo
 &emsp;│&emsp;├─Placette_2  
 &emsp;│&emsp;└─Placette_XX  
 &emsp;│&emsp;&emsp;├─Pl_XX_final_data_xyzinr.ply  
+&emsp;│&emsp;&emsp;├─Pl_XX_final_data_xyzinr_winter_nolabels.ply  
 &emsp;│&emsp;&emsp;├─Pl_XX_trees_params.csv  
 &emsp;│&emsp;&emsp;├─Pl_XX_trees_bb.csv  
 &emsp;│&emsp;&emsp;└─Pl_XX_trees_bb_faces.ply  
@@ -31,21 +38,32 @@ If you want the code to work properly, your folder structure should be the follo
 &emsp;│&emsp;├─Placette_1  
 &emsp;│&emsp;├─Placette_2  
 &emsp;│&emsp;└─Placette_XX  
+&emsp;│&emsp;&emsp;├─Pl_XX_Coverage_canopy_5_classes_05.tif  
+&emsp;│&emsp;&emsp;├─Pl_XX_Coverage_canopy_6_classes_05.tif  
 &emsp;│&emsp;&emsp;├─Pl_XX_Coverage_sure_05.tif      
 &emsp;│&emsp;&emsp;└─Pl_XX_Coverage_height_05.tif     
 &emsp;├─water_raster (args.folder_water)  
-&emsp;│&emsp;└─water_clipped.tif                  
-&emsp;└─results (args.folder_results)
-
+&emsp;│&emsp;└─water_clipped.tif   
+&emsp;├─aerial_images (args.folder_aerial_images)  
+&emsp;│&emsp;├─Placette_1  
+&emsp;│&emsp;├─Placette_2  
+&emsp;│&emsp;└─Placette_XX  
+&emsp;│&emsp;&emsp;├─PL_XX_Aerial_image_clipped.tif   
+&emsp;└─results (args.folder_results)  
+   
 
 * `data_point_clouds/` - contains 29 folders `Placette_XX/` organized by plot ID, each of those folders contains: 
   * `Pl_XX_final_data_xyzinr.ply` that contains clipped plots with annotated point clouds, the points are annotated in an instance-wise way, so that each point contains the following information : XYZ coordinates, intensity value, number of returns, return number, and the ID of the instance the point belongs to. ID=0 corresponds to a non-annotated point. 
-  * `Pl_XX_trees_params.csv` file with the parameters of each individual tree/bush instance. It contains information about each instance (its class name, class category, height, crown base height, etc). Using the script utils/open_ply_all.ply we can generate the 6 classes dataset that was used in the article. 
+  * `Pl_XX_trees_params.csv` file with the parameters of each individual tree/bush instance. It contains information about each instance (its class name, class category, height, crown base height, etc). The script `utils/open_ply_all.py` generates the 6 classes dataset that was used in the article. If you want to generate a separate file with the GT, use `utils/generate_dataset.py`.
   * `Pl_XX_trees_bb.csv` - coordinates of axis-oriented bounding boxes (BB) for each annotated tree (not used in the article, but might be useful to someone in this world). Each BB is discribed by its XY center, the extent in X and Y axes, and the BB height. Note that we consider that the bottom Y coordinate is always 0.
   * `Pl_XX_trees_bb_faces.ply` - visualization of the BB from the .csv above.     
 * `gt_rasters/` - contains 29 folders `Placette_XX/` organized by plot ID, each of these folders contains: two GeoTIFF ground truth rasters generated from 3D point clouds (see the article for the details):
   * `Pl_XX_Coverage_sure_05.tif` (05 stands for the pixel size - 0.5m - though other pixel size rasters can be generated with the code `utils/generate_dataset.py`) - GT with binary occupancy maps for 3 vegetation layers : ground vegetation, understory, overstory. 1 - vegetataion, 0 - no vegetation, -1 - nodata. Nodata pixels are present, because we only have partial 3D annotation, so its projection on the rasters may create the ambiguity.
   * `Pl_XX_Coverage_height_05.tif` - the vegetation height of the vegetation-filled pixels by layer : ground vegetation (GV), understory, bottom of overstory and top of overstory. Note that by default, bottoms of GV and understory are 0.
+  * `Pl_XX_Coverage_canopy_5_classes_05.tif` GT with for aerial images (only used for bi-temporal multimodal model) : 0 - ground, 1 - ground vegetation, 2 - understory, 3- deciduous, 4- coniferous, -1 - nodata. Corresponds to 6 classes 3D classification as stem class is not present.  
+  * `Pl_XX_Coverage_canopy_6_classes_05.tif` GT with for aerial images (only used for bi-temporal multimodal model) : 0 - ground, 1 - ground vegetation, 2 - understory, 3- oaks, 4- coniferous, 5- alder+others, -1 - nodata. Corresponds to 7 classes 3D classification as stem class is not present.
+* `aerial_images/` - (only used for bi-temporal multimodal model) contains 29 folders `Placette_XX/` organized by plot ID, each of these folders contains: GeoTIFF VHR aerial image rasters acquired at the same time as 3D summer data (see the article for the details):
+  * `PL_XX_Aerial_image_clipped.tif ` - VHR aerial image with 10 cm pixel resulution clipped with the same boundaries as 3D summer data. Contains 6 bands, although only 4 first bands can be used: Blue, Green, Red, NIR.
 * `water_raster/` - folder with GeoTIFF raster `water_clipped.tif` that respresent the distance to the closest water source (rivers). Pixels size 1m. It helps to distinguish the alder class which likes being close to the water. When we generate dataset, we have to precise in the configuration if we want to use this feature. If yes, it is added to each 3D point of the dataset. This is not precised in the article, as we only distinguish coniferous from decidious trees in the initial research. The water feature was added after the article submission.
 
 ### Species abbreviations
